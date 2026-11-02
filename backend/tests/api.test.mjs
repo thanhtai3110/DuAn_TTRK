@@ -10,13 +10,22 @@ import { openStore } from '../store.mjs';
 const pdf = Buffer.from('%PDF-1.4\n1 0 obj<</Type /Catalog>>endobj\n%%EOF');
 test('Task 8–15: integration and access control', async (t) => {
     const dir = await mkdtemp(join(tmpdir(), 'jobconnect-'));
-    const { server, db } = createApp({ database: join(dir, 'test.sqlite') });
+    const { server, db } = await createApp({ database: join(dir, 'test.sqlite') });
     server.listen(0, '127.0.0.1');
     await once(server, 'listening');
     const base = 'http://127.0.0.1:' + server.address().port;
     t.after(async () => { await new Promise(resolve => server.close(resolve)); await rm(dir, { recursive: true, force: true }); });
-    function client() { let cookie = ''; return async (path, { body, raw, ...opts } = {}) => { const response = await fetch(base + '/api' + path, { ...opts, headers: { ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...opts.headers, ...(cookie ? { Cookie: cookie } : {}) }, body: raw ?? (body === undefined ? undefined : JSON.stringify(body)) }); const set = response.headers.get('set-cookie'); if (set)
-        cookie = set.split(';')[0]; const data = response.headers.get('content-type')?.startsWith('application/json') ? await response.json() : Buffer.from(await response.arrayBuffer()); return { status: response.status, data, headers: response.headers }; }; }
+    function client() {
+        let cookie = '';
+        return async (path, { body, raw, ...opts } = {}) => {
+            const response = await fetch(base + '/api' + path, { ...opts, headers: { ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...opts.headers, ...(cookie ? { Cookie: cookie } : {}) }, body: raw ?? (body === undefined ? undefined : JSON.stringify(body)) });
+            const set = response.headers.get('set-cookie');
+            if (set)
+                cookie = set.split(';')[0];
+            const data = response.headers.get('content-type')?.startsWith('application/json') ? await response.json() : Buffer.from(await response.arrayBuffer());
+            return { status: response.status, data, headers: response.headers };
+        };
+    }
     const candidate = client(), other = client(), recruiter = client(), otherRecruiter = client(), admin = client(), anonymous = client();
     const register = (c, email, role = 'Candidate') => c('/auth/register', { method: 'POST', body: { name: 'Người dùng thử', email, password: 'Password123!', role } });
     let candidateId, cvId, recruiterJob, appId;
@@ -29,30 +38,49 @@ test('Task 8–15: integration and access control', async (t) => {
     await t.test('recruiter creates and owns job', async () => { const r = await recruiter('/recruiter/jobs', { method: 'POST', body: { title: 'React Engineer', company: 'Test Company', city: 'Hà Nội', category: 'Công nghệ thông tin', level: 'Middle', type: 'Toàn thời gian', salary: '20 – 35 triệu', min: 20, tags: ['React'], deadline: new Date(Date.now() + 86400000).toISOString(), description: 'Phát triển sản phẩm React.', requirements: 'Kinh nghiệm React.' } }); assert.equal(r.status, 201); recruiterJob = r.data.id; assert.equal((await otherRecruiter('/recruiter/jobs/' + recruiterJob, { method: 'PATCH', body: { status: 'closed' } })).status, 403); });
     await t.test('apply with owned CV; concurrent duplicate blocked by database', async () => { assert.equal((await other('/candidate/applications', { method: 'POST', body: { jobId: recruiterJob, cvId } })).status, 400); const results = await Promise.all([candidate('/candidate/applications', { method: 'POST', body: { jobId: recruiterJob, cvId, cover: 'Tôi mong muốn gia nhập đội ngũ.' } }), candidate('/candidate/applications', { method: 'POST', body: { jobId: recruiterJob, cvId } })]); assert.deepEqual(results.map(r => r.status).sort(), [201, 409]); appId = (await candidate('/candidate/applications')).data.applications[0].id; assert.equal((await other('/candidate/applications/' + appId + '/withdraw', { method: 'PATCH' })).status, 404); assert.equal((await otherRecruiter('/recruiter/applications/' + appId, { method: 'PATCH', body: { status: 'accepted' } })).status, 403); });
     await t.test('application keeps original CV after CV deletion', async () => { await candidate('/candidate/cvs/' + cvId, { method: 'DELETE' }); assert.deepEqual((await recruiter('/recruiter/applications/' + appId + '/cv')).data, pdf); const r = await candidate('/candidate/cvs?name=new.pdf', { method: 'POST', raw: pdf, headers: { 'Content-Type': 'application/pdf' } }); cvId = r.data.cv.id; });
-    await t.test('all status stages, invalid transitions, final state cannot withdraw', async () => { assert.equal((await recruiter('/recruiter/applications/' + appId, { method: 'PATCH', body: { status: 'interviewed' } })).status, 409); for (const status of ['reviewing', 'interviewed', 'accepted']) {
-        assert.equal((await recruiter('/recruiter/applications/' + appId, { method: 'PATCH', body: { status } })).status, 200);
-        assert.equal((await candidate('/candidate/applications')).data.applications[0].status, status);
-    } assert.equal((await candidate('/candidate/applications/' + appId + '/withdraw', { method: 'PATCH' })).status, 409); assert.equal((await recruiter('/recruiter/applications/' + appId, { method: 'PATCH', body: { status: 'reviewing' } })).status, 409); });
+    await t.test('all status stages, invalid transitions, final state cannot withdraw', async () => {
+        assert.equal((await recruiter('/recruiter/applications/' + appId, { method: 'PATCH', body: { status: 'interviewed' } })).status, 409);
+        for (const status of ['reviewing', 'interviewed', 'accepted']) {
+            assert.equal((await recruiter('/recruiter/applications/' + appId, { method: 'PATCH', body: { status } })).status, 200);
+            assert.equal((await candidate('/candidate/applications')).data.applications[0].status, status);
+        }
+        assert.equal((await candidate('/candidate/applications/' + appId + '/withdraw', { method: 'PATCH' })).status, 409);
+        assert.equal((await recruiter('/recruiter/applications/' + appId, { method: 'PATCH', body: { status: 'reviewing' } })).status, 409);
+    });
     await t.test('withdraw active application once, never reapply', async () => { await candidate('/candidate/applications', { method: 'POST', body: { jobId: 1, cvId } }); const a = (await candidate('/candidate/applications')).data.applications.find(a => a.jobId === 1); assert.equal((await candidate('/candidate/applications/' + a.id + '/withdraw', { method: 'PATCH' })).status, 200); assert.equal((await candidate('/candidate/applications')).data.applications.find(x => x.id === a.id).status, 'withdrawn'); assert.equal((await candidate('/candidate/applications/' + a.id + '/withdraw', { method: 'PATCH' })).status, 409); assert.equal((await candidate('/candidate/applications', { method: 'POST', body: { jobId: 1, cvId } })).status, 409); });
-    await t.test('closed and expired jobs reject apply and withdraw', async () => { await candidate('/candidate/applications', { method: 'POST', body: { jobId: 2, cvId } }); const a = (await candidate('/candidate/applications')).data.applications.find(a => a.jobId === 2); db.prepare("UPDATE jobs SET status='closed' WHERE id=2").run(); assert.equal((await candidate('/candidate/applications/' + a.id + '/withdraw', { method: 'PATCH' })).status, 409); assert.equal((await candidate('/candidate/applications', { method: 'POST', body: { jobId: 2, cvId } })).status, 409); db.prepare('UPDATE jobs SET deadline=? WHERE id=3').run(Date.now() - 1); assert.equal((await candidate('/candidate/applications', { method: 'POST', body: { jobId: 3, cvId } })).status, 409); });
-    await t.test('Admin creation restricted to local management; Admin can reject', async () => { db.prepare('INSERT INTO users(id,name,email,password,role) VALUES(?,?,?,?,?)').run('test-admin', 'Admin', 'admin@example.com', await hashPassword('AdminPassword123!'), 'Admin'); assert.equal((await admin('/auth/login', { method: 'POST', body: { email: 'admin@example.com', password: 'AdminPassword123!' } })).status, 200); assert.ok((await admin('/admin/users')).data.users.length >= 5); const a = (await candidate('/candidate/applications')).data.applications.find(a => a.jobId === 2); assert.equal((await admin('/recruiter/applications/' + a.id, { method: 'PATCH', body: { status: 'rejected' } })).status, 200); assert.equal((await candidate('/candidate/applications')).data.applications.find(x => x.id === a.id).status, 'rejected'); });
-    await t.test('search with filters and 10000 jobs remains below 500ms locally', async () => { const copy = db.prepare('INSERT INTO jobs(title,company,city,category,level,type,salary,min,tags,logo,color,ink,deadline,created_at,description,requirements,search) SELECT title,company,city,category,level,type,salary,min,tags,logo,color,ink,deadline,created_at,description,requirements,search FROM jobs WHERE id=2'); db.exec('BEGIN'); for (let i = 0; i < 10000; i++)
-        copy.run(); db.exec('COMMIT'); const timings = []; for (let i = 0; i < 20; i++) {
-        const start = performance.now();
-        const r = await anonymous('/jobs?q=React&city=' + encodeURIComponent('Hồ Chí Minh') + '&min=20&sort=salary&limit=6');
-        timings.push(performance.now() - start);
-        assert.equal(r.status, 200);
-        assert.equal(r.data.jobs.length, 6);
-        assert.ok(r.data.total >= 10000);
-    } const sorted = timings.sort((a, b) => a - b), p95 = sorted[Math.ceil(sorted.length * .95) - 1]; t.diagnostic(`10000 records / 20 HTTP requests: p95=${p95.toFixed(2)}ms, max=${Math.max(...timings).toFixed(2)}ms`); assert.ok(p95 < 500, `Local p95 ${p95}ms must be below 500ms`); assert.equal((await anonymous('/jobs?q=' + encodeURIComponent("' OR 1=1 --"))).data.total, 0); });
+    await t.test('closed and expired jobs reject apply and withdraw', async () => { await candidate('/candidate/applications', { method: 'POST', body: { jobId: 2, cvId } }); const a = (await candidate('/candidate/applications')).data.applications.find(a => a.jobId === 2); await db.prepare("UPDATE jobs SET status='closed' WHERE id=2").run(); assert.equal((await candidate('/candidate/applications/' + a.id + '/withdraw', { method: 'PATCH' })).status, 409); assert.equal((await candidate('/candidate/applications', { method: 'POST', body: { jobId: 2, cvId } })).status, 409); await db.prepare('UPDATE jobs SET deadline=? WHERE id=3').run(Date.now() - 1); assert.equal((await candidate('/candidate/applications', { method: 'POST', body: { jobId: 3, cvId } })).status, 409); });
+    await t.test('Admin creation restricted to local management; Admin can reject', async () => { await db.prepare('INSERT INTO users(id,name,email,password,role) VALUES(?,?,?,?,?)').run('test-admin', 'Admin', 'admin@example.com', await hashPassword('AdminPassword123!'), 'Admin'); assert.equal((await admin('/auth/login', { method: 'POST', body: { email: 'admin@example.com', password: 'AdminPassword123!' } })).status, 200); assert.ok((await admin('/admin/users')).data.users.length >= 5); const a = (await candidate('/candidate/applications')).data.applications.find(a => a.jobId === 2); assert.equal((await admin('/recruiter/applications/' + a.id, { method: 'PATCH', body: { status: 'rejected' } })).status, 200); assert.equal((await candidate('/candidate/applications')).data.applications.find(x => x.id === a.id).status, 'rejected'); });
+    await t.test('search with filters and 10000 jobs remains below 500ms locally', async () => {
+        const copy = db.prepare('INSERT INTO jobs(title,company,city,category,level,type,salary,min,tags,logo,color,ink,deadline,created_at,description,requirements,search) SELECT title,company,city,category,level,type,salary,min,tags,logo,color,ink,deadline,created_at,description,requirements,search FROM jobs WHERE id=2');
+        await db.exec('BEGIN');
+        for (let i = 0; i < 10000; i++)
+            await copy.run();
+        await db.exec('COMMIT');
+        const timings = [];
+        for (let i = 0; i < 20; i++) {
+            const start = performance.now();
+            const r = await anonymous('/jobs?q=React&city=' + encodeURIComponent('Hồ Chí Minh') + '&min=20&sort=salary&limit=6');
+            timings.push(performance.now() - start);
+            assert.equal(r.status, 200);
+            assert.equal(r.data.jobs.length, 6);
+            assert.ok(r.data.total >= 10000);
+        }
+        const sorted = timings.sort((a, b) => a - b), p95 = sorted[Math.ceil(sorted.length * .95) - 1];
+        t.diagnostic(`10000 records / 20 HTTP requests: p95=${p95.toFixed(2)}ms, max=${Math.max(...timings).toFixed(2)}ms`);
+        assert.ok(p95 < 500, `Local p95 ${p95}ms must be below 500ms`);
+        assert.equal((await anonymous('/jobs?q=' + encodeURIComponent("' OR 1=1 --"))).data.total, 0);
+    });
     await t.test('saved search and pagination are handled by API', async () => { await candidate('/candidate/saved/1', { method: 'PUT' }); const r = await candidate('/jobs?saved=1&limit=6'); assert.equal(r.data.total, 1); assert.equal(r.data.jobs[0].id, 1); assert.equal((await other('/jobs?saved=1')).data.total, 0); assert.equal((await anonymous('/jobs?saved=1')).status, 401); const first = (await anonymous('/jobs?limit=6&page=1')).data.jobs; const second = (await anonymous('/jobs?limit=6&page=2')).data.jobs; assert.equal(first.length, 6); assert.equal(second.length, 6); assert.ok(!second.some(j => first.some(k => k.id === j.id))); });
-    await t.test('records and PDF contents persist outside the connection', async () => { const disk = openStore(join(dir, 'test.sqlite')); try {
-        assert.equal(disk.prepare('SELECT name FROM users WHERE id=?').get(candidateId).name, 'Ứng viên A');
-        assert.equal(disk.prepare('SELECT status FROM applications WHERE id=?').get(appId).status, 'accepted');
-        assert.deepEqual(Buffer.from(disk.prepare('SELECT content FROM cvs WHERE id=?').get(cvId).content), pdf);
-    }
-    finally {
-        disk.close();
-    } });
+    await t.test('records and PDF contents persist outside the connection', async () => {
+        const disk = await openStore(join(dir, 'test.sqlite'));
+        try {
+            assert.equal((await disk.prepare('SELECT name FROM users WHERE id=?').get(candidateId)).name, 'Ứng viên A');
+            assert.equal((await disk.prepare('SELECT status FROM applications WHERE id=?').get(appId)).status, 'accepted');
+            assert.deepEqual(Buffer.from((await disk.prepare('SELECT content FROM cvs WHERE id=?').get(cvId)).content), pdf);
+        }
+        finally {
+            await disk.close();
+        }
+    });
     await t.test('logout invalidates server session', async () => { await candidate('/auth/logout', { method: 'POST' }); assert.equal((await candidate('/candidate/cvs')).status, 401); assert.equal((await candidate('/auth/me')).data.user, null); });
 });

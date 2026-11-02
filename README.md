@@ -6,11 +6,11 @@ Frontend React + Tailwind CSS và backend Node.js + SQLite cho Task 8–15. Cầ
 
 ```powershell
 cd D:\tv2
-npm --prefix frontend install
+npm run setup
 npm run dev
 ```
 
-Mở địa chỉ Vite in ra, thường là **http://127.0.0.1:5173**. Backend ở cổng 3001. Frontend chuyển tiếp `/api` tới backend. Backend không cần cài thư viện bên ngoài. Có thể chạy riêng `npm run dev` trong từng thư mục `backend` và `frontend`.
+Mở địa chỉ Vite in ra, thường là **http://127.0.0.1:5173**. Backend ở cổng 3001. Frontend chuyển tiếp `/api` tới backend. Backend cài @libsql/client để hỗ trợ Turso; chạy npm run setup trước lần đầu. Có thể chạy riêng `npm run dev` trong từng thư mục `backend` và `frontend`.
 
 Lệnh `npm run dev` ở thư mục gốc chạy frontend và backend trong cùng tiến trình. Nhấn Ctrl+C để dừng cả hai; sau khi sửa mã backend, chạy lại lệnh. Nếu ứng dụng đã chạy, lệnh sẽ báo địa chỉ hiện tại thay vì tạo thêm phiên. Không cần mở thêm terminal chạy backend riêng.
 
@@ -70,6 +70,9 @@ Test dùng database và tài khoản tạm riêng. Phép đo dưới 500ms là p
 
 ## Triển khai
 
-Hiện chạy cục bộ. Khi đưa lên server, dùng ổ đĩa bền vững, HTTPS và `NODE_ENV=production` để cookie có cờ Secure; reverse proxy cùng origin tới backend. Server lắng nghe `127.0.0.1`, cổng tùy chọn qua `PORT`. Không đặt database vào public. Xác thực email và đặt lại mật khẩu không nằm trong Task 8–15.
+Phương án hiện tại không dùng hosting trả phí: **Render Free + Turso Free**. Xem [DEPLOY.md](DEPLOY.md). Không gắn persistent disk vào Render Free. Khi thiếu cấu hình Turso, bản cloud dừng với thông báo rõ ràng để tránh mất dữ liệu trên ổ đĩa tạm. Local vẫn dùng SQLite như trước.
+
+
+Khi triển khai ở hosting riêng có SQLite local, dùng ổ đĩa bền vững. Cấu hình cloud hiện tại lưu database ở Turso, dùng HTTPS và `NODE_ENV=production` để cookie có cờ Secure; reverse proxy cùng origin tới backend. Server lắng nghe `127.0.0.1`, cổng tùy chọn qua `PORT`. Không đặt database vào public. Xác thực email và đặt lại mật khẩu không nằm trong Task 8–15.
 
 Tài liệu thư viện: [Node.js SQLite](https://nodejs.org/api/sqlite.html), [Node.js Crypto](https://nodejs.org/api/crypto.html).

@@ -1,13 +1,13 @@
-# This configuration creates a paid web service with persistent SQLite storage.
-# Review Render's current price before approving creation in your account.
+# Free hosting only. Data is stored in a separate Turso Free database.
+# Do not add a paid disk or upgrade the plan without explicit approval.
 services:
   - type: web
     name: jobconnect
     runtime: node
     region: singapore
-    plan: 0.5c-512mb
+    plan: free
     numInstances: 1
-    buildCommand: npm --prefix frontend ci --include=dev && npm run build
+    buildCommand: npm --prefix backend ci --omit=dev && npm --prefix frontend ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
     autoDeployTrigger: off
@@ -18,9 +18,9 @@ services:
         value: production
       - key: HOST
         value: 0.0.0.0
-      - key: DB_PATH
-        value: /var/data/jobconnect.sqlite
-    disk:
-      name: jobconnect-data
-      mountPath: /var/data
-      sizeGB: 1
+      - key: REQUIRE_REMOTE_DB
+        value: "true"
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false
