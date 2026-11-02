@@ -317,5 +317,22 @@ export function createApp({ database = process.env.DB_PATH || fileURLToPath(new 
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
     const { server } = createApp();
-    server.listen(Number(process.env.PORT) || 3001, '127.0.0.1', () => console.log('JobConnect API: http://127.0.0.1:' + (process.env.PORT || 3001)));
+    const port = Number(process.env.PORT) || 3001;
+    const host = process.env.HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1');
+    server.on('error', error => {
+        console.error(`Không thể mở backend trên ${host}:${port}: ${error.message}`);
+        process.exitCode = 1;
+    });
+    server.listen(port, host, () => console.log(`JobConnect API: http://${host}:${port}`));
+    let closing = false;
+    function shutdown() {
+        if (closing) return;
+        closing = true;
+        const timeout = setTimeout(() => server.closeAllConnections(), 10000);
+        timeout.unref();
+        server.close(() => clearTimeout(timeout));
+        server.closeIdleConnections();
+    }
+    process.on('SIGTERM', shutdown);
+    process.on('SIGINT', shutdown);
 }

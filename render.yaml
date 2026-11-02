@@ -1,0 +1,26 @@
+# This configuration creates a paid web service with persistent SQLite storage.
+# Review Render's current price before approving creation in your account.
+services:
+  - type: web
+    name: jobconnect
+    runtime: node
+    region: singapore
+    plan: 0.5c-512mb
+    numInstances: 1
+    buildCommand: npm --prefix frontend ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_VERSION
+        value: 24.22.1
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: DB_PATH
+        value: /var/data/jobconnect.sqlite
+    disk:
+      name: jobconnect-data
+      mountPath: /var/data
+      sizeGB: 1
