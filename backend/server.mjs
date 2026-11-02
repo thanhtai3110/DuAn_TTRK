@@ -317,5 +317,7 @@ export function createApp({ database = process.env.DB_PATH || fileURLToPath(new 
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
     const { server } = createApp();
-    server.listen(Number(process.env.PORT) || 3001, '127.0.0.1', () => console.log('JobConnect API: http://127.0.0.1:' + (process.env.PORT || 3001)));
+    server.listen(Number(process.env.PORT) || 3001, '0.0.0.0', () => {
+    console.log('Server listening on port ' + (process.env.PORT || 3001));
+});;
 }
