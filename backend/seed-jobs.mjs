@@ -1,0 +1,10 @@
+export default [
+ {id:1,title:'Senior UI/UX Designer',company:'FPT Software',logo:'FPT',color:'#ebf2ff',ink:'#2464b8',city:'Hồ Chí Minh',salary:'25 – 40 triệu',min:25,category:'Thiết kế',level:'Senior',type:'Toàn thời gian',tags:['UI/UX','Figma','Product Design'],hot:true},
+ {id:2,title:'Frontend Developer (ReactJS)',company:'VNG Corporation',logo:'VNG',color:'#fff0e8',ink:'#e56720',city:'Hồ Chí Minh',salary:'20 – 35 triệu',min:20,category:'Công nghệ thông tin',level:'Middle',type:'Toàn thời gian',tags:['ReactJS','JavaScript','TypeScript'],hot:true},
+ {id:3,title:'Digital Marketing Executive',company:'Shopee Việt Nam',logo:'S',color:'#fff0ea',ink:'#ee5935',city:'Hà Nội',salary:'15 – 22 triệu',min:15,category:'Marketing',level:'Junior',type:'Toàn thời gian',tags:['Digital Marketing','SEO','Content'],hot:false},
+ {id:4,title:'Product Manager',company:'MoMo',logo:'momo',color:'#fce8f3',ink:'#b51e78',city:'Hồ Chí Minh',salary:'35 – 55 triệu',min:35,category:'Quản lý sản phẩm',level:'Senior',type:'Toàn thời gian',tags:['Product','Agile','Fintech'],hot:true},
+ {id:5,title:'Business Analyst',company:'Techcombank',logo:'T',color:'#fff0f0',ink:'#d72b37',city:'Hà Nội',salary:'20 – 30 triệu',min:20,category:'Kinh doanh',level:'Middle',type:'Toàn thời gian',tags:['Business Analysis','SQL','Banking'],hot:false},
+ {id:6,title:'Graphic Design Intern',company:'Creative Studio',logo:'cs.',color:'#f0eafd',ink:'#7956b9',city:'Đà Nẵng',salary:'5 – 8 triệu',min:5,category:'Thiết kế',level:'Intern',type:'Bán thời gian',tags:['Photoshop','Illustrator','Creative'],hot:false},
+ {id:7,title:'Backend Engineer (Java)',company:'FPT Software',logo:'FPT',color:'#ebf2ff',ink:'#2464b8',city:'Đà Nẵng',salary:'25 – 40 triệu',min:25,category:'Công nghệ thông tin',level:'Senior',type:'Toàn thời gian',tags:['Java','Spring Boot','SQL'],hot:false},
+ {id:8,title:'Content Marketing Specialist',company:'VNG Corporation',logo:'VNG',color:'#fff0e8',ink:'#e56720',city:'Hồ Chí Minh',salary:'15 – 25 triệu',min:15,category:'Marketing',level:'Middle',type:'Toàn thời gian',tags:['Content','Social Media','Brand'],hot:false},
+];
